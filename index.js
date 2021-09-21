@@ -1,11 +1,12 @@
 const Discord = require("discord.js");
 const client = new Discord.Client();
 const config = require("./config.json");
-const prefix = `${process.env.prefix}`;
 const ytdl = require("ytdl-core");
 const ytSearch = require("yt-search");
 const { validateURL } = require("ytdl-core");
 const ytpl = require("ytpl");
+require("dotenv").config();
+const prefix = `${process.env.prefix}`;
 const musicQueue = new Map();
 
 function queueMultSongs(arg) {}
@@ -143,4 +144,4 @@ const stopSong = (message, serverQueue) => {
   serverQueue.connection.dispatcher.end();
 };
 
-client.login(`${process.env.token}`);
+client.login(process.env.token);
