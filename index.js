@@ -66,15 +66,15 @@ const showQueue = async (args, serverQueue) => {
   await queueEmbed.react("⬅️");
   await queueEmbed.react("➡️");
 
-  const filter = (reaction, user) =>{
-    ["⬅️", "➡️"].includes(reaction.emoji.name) && args.author.id == user.id
+  const filter = (reaction, user) => {
+    ["⬅️", "➡️"].includes(reaction.emoji.name) && args.author.id == user.id;
   };
   const collector = queueEmbed.createReactionCollector({ filter, time: 20000 });
   collector.on("collect", (reaction, user) => {
     if (reaction.emoji.name === "➡️") {
       currentPage < embeds.length - 1 && ++currentPage;
     } else if (reaction.emoji.name === "⬅️") {
-      currentPage > 0 && --currentPage && ;
+      currentPage > 0 && --currentPage;
     }
     queueEmbed.edit(
       `Current Page: ${currentPage + 1}/${embeds.length}`,
