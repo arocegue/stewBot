@@ -9,7 +9,7 @@ const ytpl = require("ytpl");
 require("dotenv").config();
 const prefix = `${process.env.prefix}`;
 const musicQueue = new Map();
-
+let timeout = -1;
 client.on("ready", () => {
   console.log(`Logged in as ${client.user.tag}`);
 });
@@ -28,6 +28,7 @@ client.on("message", (args) => {
     stopSong(args, serverQueue);
   } else if (message[0] === prefix + "queue") {
     showQueue(args, serverQueue);
+  } else if (message[0] === prefix + "help") {
   }
 });
 
@@ -36,13 +37,14 @@ const getQueueEmbed = (serverQueue) => {
   let k = 10;
   let j;
   let queue = serverQueue.songs;
+
   for (let i = 0; i < queue.length; i += 10) {
     const curr = queue.slice(i, k);
     k += 10;
-    j = k;
-    const info = curr.map((song) =>
-      `${++j}) [${song.title}](${song.url})`.join("\n")
-    );
+    j = i;
+    const info = curr
+      .map((song) => `${++j}) [${song.title}](${song.url})`)
+      .join("\n");
     const embed = new MessageEmbed().setDescription(
       `**[Current Song: ${queue[0].title}](${queue[0].url})**\n${info}`
     );
@@ -51,13 +53,15 @@ const getQueueEmbed = (serverQueue) => {
 
   return queueList;
 };
-
+const getEmoji = (args, em) => {
+  return args.client.emojis.cache.find((emoji) => emoji.name === em);
+};
 const showQueue = async (args, serverQueue) => {
   if (!serverQueue) {
     args.channel.send(`**There is no active queue!**`);
     return;
   }
-  let page = 0;
+  let currentPage = 0;
   const embeds = getQueueEmbed(serverQueue);
   const queueEmbed = await args.channel.send(
     `Current Page: ${currentPage + 1}/${embeds.length}`,
@@ -65,11 +69,12 @@ const showQueue = async (args, serverQueue) => {
   );
   await queueEmbed.react("⬅️");
   await queueEmbed.react("➡️");
-
   const filter = (reaction, user) => {
-    ["⬅️", "➡️"].includes(reaction.emoji.name) && args.author.id == user.id;
+    return (
+      ["⬅️", "➡️"].includes(reaction.emoji.name) && args.author.id == user.id
+    );
   };
-  const collector = queueEmbed.createReactionCollector({ filter, time: 20000 });
+  const collector = queueEmbed.createReactionCollector(filter, { time: 20000 });
   collector.on("collect", (reaction, user) => {
     if (reaction.emoji.name === "➡️") {
       currentPage < embeds.length - 1 && ++currentPage;
@@ -90,7 +95,11 @@ const playSong = async (args, serverQueue, message) => {
   const author = args.member;
   const vC = author.voice.channel;
   if (!author.voice.channel) {
-    args.reply("You need to be in a voice channel crackhead");
+    args.reply(
+      `You need to be in a voice channel crackhead ${getEmoji(args, "3x")}`
+    );
+  } else if (message.length < 2) {
+    args.reply(`You need to provide a song airhead ${getEmoji(args, "KEKW")}`);
   } else {
     if (message[1].toLowerCase().includes("&list=")) {
       const listIdx = message[1].toLowerCase().indexOf("&list=");
@@ -143,10 +152,15 @@ const playSong = async (args, serverQueue, message) => {
         throw err;
       }
     } else {
+      timeout !== -1 && clearTimeout(timeout);
       if (batch) {
         pushMultSongs(args, batch, serverQueue);
       } else {
         pushSong(args, song, serverQueue);
+      }
+      if (timeout !== -1) {
+        timeout = -1;
+        videoPlayer(args.guild, serverQueue.songs[0]);
       }
     }
   }
@@ -169,11 +183,16 @@ const pushMultSongs = (args, batch, serverQueue) => {
   args.channel.send(`**Enqueued ${batch.items.length} songs**`);
 };
 
+const leaveVoice = function (songQueue, guild) {
+  songQueue.voice_channel.leave();
+  songQueue.message_channel.send(`**Currently Inactive**`);
+  musicQueue.delete(guild.id);
+};
+
 const videoPlayer = async (guild, song) => {
   const songQueue = musicQueue.get(guild.id);
   if (!song) {
-    songQueue.voice_channel.leave();
-    musicQueue.delete(guild.id);
+    timeout = setTimeout(leaveVoice.bind(null, songQueue, guild), 90 * 1000);
     return;
   }
   const stream = ytdl(song.url, { filter: "audioonly" });
