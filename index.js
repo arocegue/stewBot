@@ -129,9 +129,9 @@ const playSong = async (args, serverQueue, message) => {
       };
       musicQueue.set(args.guild.id, queue_constructor);
       if (batch) {
-        pushMultSongs(args, batch, serverQueue);
+        pushMultSongs(args, batch, queue_constructor);
       } else {
-        pushSong(args, song, serverQueue);
+        pushSong(args, song, queue_constructor);
       }
       try {
         const conn = await vC.join();
