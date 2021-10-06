@@ -1,15 +1,24 @@
 const Discord = require("discord.js");
 const client = new Discord.Client();
-//const config = require("./config.json");
+const { Spotify } = require("spotify-it");
+const fs = require("fs");
 const ytdl = require("ytdl-core");
 const ytSearch = require("yt-search");
 const { MessageEmbed } = require("discord.js");
 const { validateURL } = require("ytdl-core");
 const ytpl = require("ytpl");
 require("dotenv").config();
+
+//****************
 const prefix = `${process.env.prefix}`;
 const musicQueue = new Map();
 let timeout = -1;
+const spotify = new Spotify({
+  id: `${process.env.clientid}`,
+  secret: `${process.env.clientsecret}`,
+  defaultLimit: 150, // default track limit for playlist & album
+});
+//***************
 client.on("ready", () => {
   console.log(`Logged in as ${client.user.tag}`);
 });
@@ -57,7 +66,7 @@ const getEmoji = (args, em) => {
   return args.client.emojis.cache.find((emoji) => emoji.name === em);
 };
 const showQueue = async (args, serverQueue) => {
-  if (!serverQueue) {
+  if (!serverQueue || serverQueue.songs.length < 1) {
     args.channel.send(`**There is no active queue!**`);
     return;
   }
@@ -89,11 +98,17 @@ const showQueue = async (args, serverQueue) => {
   });
 };
 
+const video_finder = async (query) => {
+  const videoResult = await ytSearch(query);
+  return videoResult.videos.length > 1 ? videoResult.videos[0] : null;
+};
+
 const playSong = async (args, serverQueue, message) => {
   let batch;
   let song = {};
   const author = args.member;
   const vC = author.voice.channel;
+  let spotty; //spotify
   if (!author.voice.channel) {
     args.reply(
       `You need to be in a voice channel crackhead ${getEmoji(args, "3x")}`
@@ -102,22 +117,34 @@ const playSong = async (args, serverQueue, message) => {
     args.reply(`You need to provide a song airhead ${getEmoji(args, "KEKW")}`);
   } else {
     if (message[1].toLowerCase().includes("&list=")) {
+      //Youtube
       const listIdx = message[1].toLowerCase().indexOf("&list=");
       if (message[1].toLowerCase().includes("&index=")) {
         const listIdxTwo = message[1].toLowerCase().indexOf("&index=");
         batch = await ytpl(`${message[1].slice(listIdx + 6, listIdxTwo)}`);
       } else batch = await ytpl(`${message[1].slice(listIdx + 6)}`);
     } else if (validateURL(message[1])) {
+      //Youtube
       const song_info = await ytdl.getInfo(message[1]);
       song = {
         title: song_info.videoDetails.title,
         url: song_info.videoDetails.video_url,
       };
+    } else if (Spotify.validate(message[1], "TRACK")) {
+      const track = await spotify.getTrack(message[1]);
+      const video = await video_finder(
+        `${track.name} ${track.artists} explicit`
+      );
+      if (video) {
+        song = { title: video.title, url: video.url };
+      } else {
+        args.channel.send("Cant find the video");
+      }
+    } else if (Spotify.validate(message[1], "PLAYLIST")) {
+      spotty = await spotify.getPlaylist(message[1]);
+    } else if (Spotify.validate(message[1], "ALBUM")) {
+      spotty = await spotify.getAlbum(message[1]);
     } else {
-      const video_finder = async (query) => {
-        const videoResult = await ytSearch(query);
-        return videoResult.videos.length > 1 ? videoResult.videos[0] : null;
-      };
       const toSearch = args.content.toLowerCase().indexOf(" ");
       const video = await video_finder(
         args.content.toLowerCase().slice(toSearch, args.content.length) +
@@ -139,6 +166,8 @@ const playSong = async (args, serverQueue, message) => {
       musicQueue.set(args.guild.id, queue_constructor);
       if (batch) {
         pushMultSongs(args, batch, queue_constructor);
+      } else if (spotty) {
+        await pushMultSpotSongs(args, spotty, queue_constructor);
       } else {
         pushSong(args, song, queue_constructor);
       }
@@ -155,6 +184,8 @@ const playSong = async (args, serverQueue, message) => {
       timeout !== -1 && clearTimeout(timeout);
       if (batch) {
         pushMultSongs(args, batch, serverQueue);
+      } else if (spotty) {
+        await pushMultSpotSongs(args, spotty, serverQueue);
       } else {
         pushSong(args, song, serverQueue);
       }
@@ -183,6 +214,22 @@ const pushMultSongs = (args, batch, serverQueue) => {
   args.channel.send(`**Enqueued ${batch.items.length} songs**`);
 };
 
+const pushMultSpotSongs = async (args, spotty, serverQueue) => {
+  let song = {};
+  let count = 0;
+  for (let i = 0; i < spotty.tracks.length; ++i) {
+    const video = await video_finder(
+      `${spotty.tracks[i].title} by ${spotty.tracks[i].artists} explicit`
+    );
+    if (video) {
+      song = { title: video.title, url: video.url };
+      count++;
+      serverQueue.songs.push(song);
+    }
+  }
+  args.channel.send(`**Enqueued ${count} songs**`);
+};
+
 const leaveVoice = function (songQueue, guild) {
   songQueue.voice_channel.leave();
   songQueue.message_channel.send(`**Currently Inactive**`);
@@ -195,12 +242,18 @@ const videoPlayer = async (guild, song) => {
     timeout = setTimeout(leaveVoice.bind(null, songQueue, guild), 90 * 1000);
     return;
   }
-  const stream = ytdl(song.url, { filter: "audioonly" });
+  const stream = ytdl(song.url, { filter: "audioonly" }).on("error", (err) =>
+    console.log(err)
+  );
   songQueue.connection.play(stream, { seek: 0 }).on("finish", () => {
     songQueue.songs.shift();
     videoPlayer(guild, songQueue.songs[0]);
   });
-  await songQueue.message_channel.send(`**${song.title}** now playing`);
+  await songQueue.message_channel.send(
+    new MessageEmbed().setDescription(
+      `**[Now Playing: ${song.title}](${song.url})**`
+    )
+  );
 };
 
 const skipSong = (message, serverQueue) => {
