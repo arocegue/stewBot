@@ -132,9 +132,7 @@ const playSong = async (args, serverQueue, message) => {
       };
     } else if (Spotify.validate(message[1], "TRACK")) {
       const track = await spotify.getTrack(message[1]);
-      const video = await video_finder(
-        `${track.name} ${track.artists} explicit`
-      );
+      const video = await video_finder(`${track} explicit`);
       if (video) {
         song = { title: video.title, url: video.url };
       } else {
