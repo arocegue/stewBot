@@ -239,12 +239,16 @@ const leaveVoice = function (songQueue, guild) {
 const videoPlayer = async (guild, song) => {
   const songQueue = musicQueue.get(guild.id);
   if (!song) {
-    timeout = setTimeout(leaveVoice.bind(null, songQueue, guild), 90 * 1000);
+    timeout = setTimeout(leaveVoice.bind(null, songQueue, guild), 240 * 1000);
     return;
   }
-  const stream = ytdl(song.url, { filter: "audioonly" }).on("error", (err) =>
-    console.log(err)
-  );
+  const stream = ytdl(song.url, {
+    filter: "audioonly",
+    quality: "highestaudio",
+  }).on("error", (err) => {
+    console.log(err);
+    videoPlayer(guild, songQueue.songs[0]);
+  });
   songQueue.connection.play(stream, { seek: 0 }).on("finish", () => {
     songQueue.songs.shift();
     videoPlayer(guild, songQueue.songs[0]);
