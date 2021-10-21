@@ -1,7 +1,8 @@
+const cls = require("./song.js");
 const Discord = require("discord.js");
 const client = new Discord.Client();
 const { Spotify } = require("spotify-it");
-const fs = require("fs");
+//const fs = require("fs");
 const ytdl = require("ytdl-core");
 const ytSearch = require("yt-search");
 const { MessageEmbed } = require("discord.js");
@@ -18,6 +19,9 @@ const spotify = new Spotify({
   secret: `${process.env.clientsecret}`,
   defaultLimit: 150, // default track limit for playlist & album
 });
+const sleep = (delay) => {
+  return new Promise((resolve) => setTimeout(resolve, delay * 1000));
+};
 //***************
 client.on("ready", () => {
   console.log(`Logged in as ${client.user.tag}`);
@@ -105,7 +109,6 @@ const video_finder = async (query) => {
 
 const playSong = async (args, serverQueue, message) => {
   let batch;
-  let song = {};
   const author = args.member;
   const vC = author.voice.channel;
   let spotty; //spotify
@@ -126,15 +129,15 @@ const playSong = async (args, serverQueue, message) => {
     } else if (validateURL(message[1])) {
       //Youtube
       const song_info = await ytdl.getInfo(message[1]);
-      song = {
-        title: song_info.videoDetails.title,
-        url: song_info.videoDetails.video_url,
-      };
+      song = new cls.song(
+        song_info.videoDetails.title,
+        song_info.videoDetails.video_url
+      );
     } else if (Spotify.validate(message[1], "TRACK")) {
       const track = await spotify.getTrack(message[1]);
       const video = await video_finder(`${track} explicit`);
       if (video) {
-        song = { title: video.title, url: video.url };
+        song = new cls.song(video.title, video.url);
       } else {
         args.channel.send("Cant find the video");
       }
@@ -149,7 +152,7 @@ const playSong = async (args, serverQueue, message) => {
           " explicit"
       );
       if (video) {
-        song = { title: video.title, url: video.url };
+        song = new cls.song(video.title, video.url);
       } else {
         args.channel.send("Cant find the video");
       }
@@ -165,7 +168,8 @@ const playSong = async (args, serverQueue, message) => {
       if (batch) {
         pushMultSongs(args, batch, queue_constructor);
       } else if (spotty) {
-        await pushMultSpotSongs(args, spotty, queue_constructor);
+        pushMultSpotSongs(args, spotty, queue_constructor);
+        await sleep(3);
       } else {
         pushSong(args, song, queue_constructor);
       }
@@ -183,7 +187,8 @@ const playSong = async (args, serverQueue, message) => {
       if (batch) {
         pushMultSongs(args, batch, serverQueue);
       } else if (spotty) {
-        await pushMultSpotSongs(args, spotty, serverQueue);
+        pushMultSpotSongs(args, spotty, serverQueue);
+        await sleep(3);
       } else {
         pushSong(args, song, serverQueue);
       }
@@ -201,28 +206,23 @@ const pushSong = (args, song, serverQueue) => {
 };
 
 const pushMultSongs = (args, batch, serverQueue) => {
-  let song = {};
   for (let i = 0; i < batch.items.length; ++i) {
-    song = {
-      title: batch.items[i].title,
-      url: batch.items[i].shortUrl,
-    };
-    serverQueue.songs.push(song);
+    serverQueue.songs.push(
+      new cls.song(batch.items[i].title, batch.items[i].shortUrl)
+    );
   }
   args.channel.send(`**Enqueued ${batch.items.length} songs**`);
 };
 
 const pushMultSpotSongs = async (args, spotty, serverQueue) => {
-  let song = {};
   let count = 0;
   for (let i = 0; i < spotty.tracks.length; ++i) {
-    const video = await video_finder(
-      `${spotty.tracks[i].title} by ${spotty.tracks[i].artists} explicit`
+    const { title: gotTitle, url: gotURL } = await video_finder(
+      `${spotty.tracks[i]} explicit`
     );
-    if (video) {
-      song = { title: video.title, url: video.url };
+    if (gotTitle) {
       count++;
-      serverQueue.songs.push(song);
+      serverQueue.songs.push(new cls.song(gotTitle, gotURL));
     }
   }
   args.channel.send(`**Enqueued ${count} songs**`);
@@ -245,6 +245,8 @@ const videoPlayer = async (guild, song) => {
     quality: "highestaudio",
   }).on("error", (err) => {
     console.log(err);
+    //videoPlayer(guild, songQueue.songs[0]);
+    songQueue.songs.shift();
     videoPlayer(guild, songQueue.songs[0]);
   });
   songQueue.connection.play(stream, { seek: 0 }).on("finish", () => {
