@@ -165,6 +165,7 @@ const playSong = async (args, serverQueue, message) => {
         songs: [],
       };
       musicQueue.set(args.guild.id, queue_constructor);
+      timeout = -1;
       if (batch) {
         pushMultSongs(args, batch, queue_constructor);
       } else if (spotty) {
