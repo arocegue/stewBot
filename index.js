@@ -155,6 +155,7 @@ const playSong = async (args, serverQueue, message) => {
         song = new cls.song(video.title, video.url);
       } else {
         args.channel.send("Cant find the video");
+        return;
       }
     }
     if (!serverQueue) {
@@ -245,7 +246,7 @@ const videoPlayer = async (guild, song) => {
     filter: "audioonly",
     quality: "highestaudio",
   }).on("error", (err) => {
-    console.log(err);
+    console.log("Error Occured: \n", err);
     //videoPlayer(guild, songQueue.songs[0]);
     songQueue.songs.shift();
     videoPlayer(guild, songQueue.songs[0]);
