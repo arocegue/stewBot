@@ -1,7 +1,8 @@
+/*
 const cls = require("./song.js");
 const Discord = require("discord.js");
 const client = new Discord.Client();
-const { Spotify } = require("spotify-it");
+// const { Spotify } = require("spotify-web-api-js");
 //const fs = require("fs");
 const ytdl = require("ytdl-core");
 const ytSearch = require("yt-search");
@@ -14,11 +15,11 @@ require("dotenv").config();
 const prefix = `${process.env.prefix}`;
 const musicQueue = new Map();
 let timeout = -1;
-const spotify = new Spotify({
-  id: `${process.env.clientid}`,
-  secret: `${process.env.clientsecret}`,
-  defaultLimit: 150, // default track limit for playlist & album
-});
+// const spotify = new Spotify({
+//   clientId: `${process.env.clientid}`,
+//   clientSecret: `${process.env.clientsecret}`,
+//   defaultLimit: 150, // default track limit for playlist & album
+// });
 const sleep = (delay) => {
   return new Promise((resolve) => setTimeout(resolve, delay * 1000));
 };
@@ -128,24 +129,28 @@ const playSong = async (args, serverQueue, message) => {
       } else batch = await ytpl(`${message[1].slice(listIdx + 6)}`);
     } else if (validateURL(message[1])) {
       //Youtube
+      
       const song_info = await ytdl.getInfo(message[1]);
+      
       song = new cls.song(
         song_info.videoDetails.title,
         song_info.videoDetails.video_url
       );
-    } else if (Spotify.validate(message[1], "TRACK")) {
-      const track = await spotify.getTrack(message[1]);
-      const video = await video_finder(`${track} explicit`);
-      if (video) {
-        song = new cls.song(video.title, video.url);
-      } else {
-        args.channel.send("Cant find the video");
-      }
-    } else if (Spotify.validate(message[1], "PLAYLIST")) {
-      spotty = await spotify.getPlaylist(message[1]);
-    } else if (Spotify.validate(message[1], "ALBUM")) {
-      spotty = await spotify.getAlbum(message[1]);
-    } else {
+    } 
+    // else if (Spotify.validate(message[1], "TRACK")) {
+    //   const track = await spotify.getTrack(message[1]);
+    //   const video = await video_finder(`${track} explicit`);
+    //   if (video) {
+    //     song = new cls.song(video.title, video.url);
+    //   } else {
+    //     args.channel.send("Cant find the video");
+    //   }
+    // } else if (Spotify.validate(message[1], "PLAYLIST")) {
+    //   spotty = await spotify.getPlaylist(message[1]);
+    // } else if (Spotify.validate(message[1], "ALBUM")) {
+    //   spotty = await spotify.getAlbum(message[1]);
+    // } 
+    else {
       const toSearch = args.content.toLowerCase().indexOf(" ");
       const video = await video_finder(
         args.content.toLowerCase().slice(toSearch, args.content.length) +
@@ -169,10 +174,11 @@ const playSong = async (args, serverQueue, message) => {
       timeout = -1;
       if (batch) {
         pushMultSongs(args, batch, queue_constructor);
-      } else if (spotty) {
-        pushMultSpotSongs(args, spotty, queue_constructor);
-        await sleep(3);
-      } else {
+      }// else if (spotty) {
+      //   pushMultSpotSongs(args, spotty, queue_constructor);
+      //   await sleep(3);
+      // } 
+      else {
         pushSong(args, song, queue_constructor);
       }
       try {
@@ -280,5 +286,68 @@ const stopSong = (message, serverQueue) => {
   serverQueue.songs = [];
   serverQueue.connection.dispatcher.end();
 };
+
+client.login(process.env.token);
+
+*/
+
+
+const fs = require('node:fs');
+const path = require('node:path');
+const { Player } = require('discord-player');
+const { Client, Events, Collection, GatewayIntentBits } = require('discord.js');
+require('dotenv').config()
+
+
+
+const client = new Client({ intents: [
+  GatewayIntentBits.Guilds,
+  GatewayIntentBits.GuildMessages,
+  GatewayIntentBits.GuildVoiceStates,
+  GatewayIntentBits.GuildMembers,
+  GatewayIntentBits.MessageContent
+] });
+
+
+client.commands = new Collection();
+client.cooldowns = new Collection()
+client.player = new Player(client, {
+  ytdlOptions: {
+    quality: "highestaudio",
+    highWaterMark: 1 << 25,
+  },
+});
+client.player.extractors.loadDefault();
+const commandsPath = path.join(__dirname, 'commands');
+const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+
+for (const file of commandFiles) {
+	const filePath = path.join(commandsPath, file);
+	const command = require(filePath);
+	// Set a new item in the Collection with the key as the command name and the value as the exported module
+	if ('data' in command && 'execute' in command) {
+		client.commands.set(command.data.name, command);
+	} else {
+		console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
+	}
+}
+
+const eventFolders = fs.readdirSync(path.resolve('./events'))
+
+for (const folder of eventFolders) {
+  const eventFiles = fs.readdirSync(path.resolve(`./events/${folder}`)).filter(file => file.endsWith('.js'));
+  for(const file of eventFiles){
+    const event = require(`./events/${folder}/${file}`);
+    if(folder == 'client'){
+      if (event.once) {
+        client.once(event.name, (...args) => event.execute(...args));
+      } else {
+        client.on(event.name, (...args) => event.execute(...args));
+      }
+    }else if (folder == 'player'){
+      client.player.events.on(event.name, (...args) => event.execute(...args));
+    }
+  }
+}
 
 client.login(process.env.token);
