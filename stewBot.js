@@ -295,7 +295,7 @@ client.login(process.env.token);
 const fs = require('node:fs');
 const path = require('node:path');
 const { Player } = require('discord-player');
-const { Client, Events, Collection, GatewayIntentBits } = require('discord.js');
+const { Client, Events, Collection, GatewayIntentBits, ReactionCollector } = require('discord.js');
 require('dotenv').config()
 
 
@@ -305,7 +305,8 @@ const client = new Client({ intents: [
   GatewayIntentBits.GuildMessages,
   GatewayIntentBits.GuildVoiceStates,
   GatewayIntentBits.GuildMembers,
-  GatewayIntentBits.MessageContent
+  GatewayIntentBits.MessageContent,
+  GatewayIntentBits.GuildMessageReactions
 ] });
 
 
