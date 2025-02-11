@@ -72,7 +72,6 @@ module.exports = {
 				if (reaction.emoji.name === "➡️") {
 					currentPage < embeds.length - 1 && ++currentPage;
 				} else if (reaction.emoji.name === "⬅️") {
-					console.log("HereLeft")
 					currentPage > 0 && --currentPage;
 				}
 				interaction.editReply(

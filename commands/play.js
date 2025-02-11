@@ -1,5 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const wait = require('node:timers/promises').setTimeout;
+const { YoutubeiExtractor, createYoutubeiStream } = require("discord-player-youtubei")
+const { SpotifyExtractor } = require( "@discord-player/extractor")
 const {useMainPlayer} = require('discord-player')
 // const { SlashCommandBuilder } = require('discord.js');
 // const { useQueue} = require('discord-player');
